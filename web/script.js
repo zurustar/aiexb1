@@ -47,6 +47,15 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             document.getElementById('logout-btn').addEventListener('click', handleLogout);
             fetchSchedules();
+
+            // 管理者(user_id=1)の場合、管理者パネルを表示
+            const adminPanel = document.getElementById('admin-panel');
+            if (currentUser.user_id === 1) {
+                adminPanel.classList.remove('hidden');
+                fetchUsers();
+            } else {
+                adminPanel.classList.add('hidden');
+            }
         }
     };
 
@@ -123,6 +132,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const handleLogout = () => {
         clearToken();
         currentUser = null;
+        document.getElementById('admin-panel').classList.add('hidden');
+        document.getElementById('admin-schedule-view').classList.add('hidden');
         showAuthUI();
     };
 
@@ -202,6 +213,141 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- Admin Logic ---
+    const adminCreateScheduleForm = document.getElementById('admin-create-schedule-form');
+
+    const fetchUsers = async () => {
+        try {
+            const users = await apiFetch('/admin/users');
+            renderUsers(users);
+        } catch (error) {
+            alert(`Failed to fetch users: ${error.message}`);
+        }
+    };
+
+    const renderUsers = (users) => {
+        const userList = document.getElementById('user-list');
+        userList.innerHTML = '';
+        if (!users || users.length === 0) {
+            userList.innerHTML = '<p>ユーザーが見つかりません。</p>';
+            return;
+        }
+        users.forEach(user => {
+            const item = document.createElement('div');
+            item.className = 'user-item';
+            item.innerHTML = `
+                <span>${user.username} (ID: ${user.id}, Email: ${user.email})</span>
+                <button class="manage-schedules-btn" data-user-id="${user.id}" data-user-name="${user.username}">
+                    スケジュール管理
+                </button>
+            `;
+            userList.appendChild(item);
+        });
+
+        document.querySelectorAll('.manage-schedules-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const userId = e.target.dataset.userId;
+                const userName = e.target.dataset.userName;
+                handleManageSchedules(userId, userName);
+            });
+        });
+    };
+
+    const handleManageSchedules = (userId, userName) => {
+        const adminScheduleView = document.getElementById('admin-schedule-view');
+        const selectedUserName = document.getElementById('admin-selected-user-name');
+        const ownerIdInput = document.getElementById('admin-owner-id');
+
+        selectedUserName.textContent = `${userName}のスケジュール`;
+        ownerIdInput.value = userId;
+        adminScheduleView.classList.remove('hidden');
+
+        fetchAdminSchedules(userId);
+    };
+
+    const fetchAdminSchedules = async (userId) => {
+        try {
+            const schedules = await apiFetch(`/users/${userId}/schedules`);
+            renderAdminSchedules(schedules, userId);
+        } catch (error) {
+            alert(`Failed to fetch schedules for user ${userId}: ${error.message}`);
+            document.getElementById('admin-schedule-list').innerHTML = `<p class="error">スケジュールの読み込みに失敗しました。</p>`;
+        }
+    };
+
+    const renderAdminSchedules = (schedules, ownerId) => {
+        const adminScheduleList = document.getElementById('admin-schedule-list');
+        adminScheduleList.innerHTML = '';
+        if (!schedules || schedules.length === 0) {
+            adminScheduleList.innerHTML = '<p>スケジュールはありません。</p>';
+            return;
+        }
+        schedules.forEach(s => {
+            const item = document.createElement('div');
+            item.className = 'schedule-item';
+            item.innerHTML = `
+                <h4>${s.title}</h4>
+                <p><strong>開始:</strong> ${new Date(s.start_time).toLocaleString()}</p>
+                <p><strong>終了:</strong> ${new Date(s.end_time).toLocaleString()}</p>
+                <p>${s.description || ''}</p>
+                <p><em>場所: ${s.location || 'N/A'}</em></p>
+                <div class="actions">
+                    <button class="admin-delete-btn" data-id="${s.id}" data-owner-id="${ownerId}">削除</button>
+                </div>
+            `;
+            adminScheduleList.appendChild(item);
+        });
+
+        document.querySelectorAll('.admin-delete-btn').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                const scheduleId = e.target.dataset.id;
+                const currentOwnerId = e.target.dataset.ownerId;
+                if (confirm('このスケジュールを本当に削除しますか？')) {
+                    try {
+                        await apiFetch(`/schedules/${scheduleId}`, { method: 'DELETE' });
+                        fetchAdminSchedules(currentOwnerId);
+                    } catch (error) {
+                        alert(`Failed to delete schedule: ${error.message}`);
+                    }
+                }
+            });
+        });
+    };
+
+    adminCreateScheduleForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const ownerId = document.getElementById('admin-owner-id').value;
+        const title = document.getElementById('admin-schedule-title').value;
+        const startTime = document.getElementById('admin-schedule-start-time').value;
+        const endTime = document.getElementById('admin-schedule-end-time').value;
+        const description = document.getElementById('admin-schedule-description').value;
+        const location = document.getElementById('admin-schedule-location').value;
+
+        if (!ownerId) {
+            alert('ユーザーが選択されていません。');
+            return;
+        }
+
+        try {
+            await apiFetch('/schedules', {
+                method: 'POST',
+                body: JSON.stringify({
+                    title,
+                    start_time: new Date(startTime).toISOString(),
+                    end_time: new Date(endTime).toISOString(),
+                    description,
+                    location,
+                    owner_id: parseInt(ownerId, 10),
+                }),
+            });
+            adminCreateScheduleForm.reset();
+            // keep ownerId hidden input value
+            document.getElementById('admin-owner-id').value = ownerId;
+            fetchAdminSchedules(ownerId);
+        } catch (error) {
+            alert(`Failed to create schedule: ${error.message}`);
+        }
+    });
 
     // --- Initial Check ---
     if (getToken()) {

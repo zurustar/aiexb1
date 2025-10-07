@@ -113,3 +113,21 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]string{"token": tokenString})
 }
+
+// GetAllUsers はすべてのユーザーのリストを取得します。
+// 本番環境では、このエンドポイントは管理者のみがアクセスできるように制限する必要があります。
+func (h *UserHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := h.userRepo.FindAll()
+	if err != nil {
+		log.Printf("ERROR: Failed to get all users: %v", err)
+		errorJSON(w, http.StatusInternalServerError, "Failed to retrieve users")
+		return
+	}
+
+	var resp []*model.UserResponse
+	for _, u := range users {
+		resp = append(resp, u.ToUserResponse())
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}

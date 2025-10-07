@@ -66,6 +66,30 @@ func (r *UserRepository) FindUserByID(id int64) (*model.User, error) {
 	return &user, nil
 }
 
+// FindAll はすべてのユーザーを取得します。
+func (r *UserRepository) FindAll() ([]*model.User, error) {
+	query := "SELECT id, username, email, password_hash, created_at FROM users ORDER BY id;"
+	rows, err := r.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("query for all users failed: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*model.User
+	for rows.Next() {
+		var user model.User
+		if err := rows.Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan user row: %w", err)
+		}
+		users = append(users, &user)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("iteration over user rows failed: %w", err)
+	}
+
+	return users, nil
+}
 
 // FindUserByEmail はEmailでユーザーを検索します。
 func (r *UserRepository) FindUserByEmail(email string) (*model.User, error) {

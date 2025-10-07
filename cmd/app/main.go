@@ -47,8 +47,13 @@ func main() {
 	// 削除 (要認証)
 	mux.Handle("DELETE /api/schedules/{scheduleID}", authMiddleware.JwtAuthentication(http.HandlerFunc(scheduleHandler.DeleteSchedule)))
 
+	// --- 管理者用エンドポイント ---
+	// 全ユーザー取得 (要認証)
+	mux.Handle("GET /api/admin/users", authMiddleware.JwtAuthentication(http.HandlerFunc(userHandler.GetAllUsers)))
+
+
 	// --- 静的ファイル配信 ---
-	// API以外のリクエストはwebディレクトリの静的ファイルとして配信
+	// API以外のリクエストはwebディレクトリの静적ファイルとして配信
 	mux.Handle("/", http.FileServer(http.Dir("web")))
 
 
