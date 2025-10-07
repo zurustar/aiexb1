@@ -1,18 +1,27 @@
-## 作業ルール
+# Agent Instructions
 
-このリポジトリで開発作業を行うエージェントは、以下のルールに従ってください。
+This document outlines the rules and guidelines for AI agents working in this repository.
 
-### 1. `tasks.md` の作成と更新
-- 実装作業を開始する前に、必ず `tasks.md` ファイルを作成してください。
-- `tasks.md` には、現在着手しようとしている具体的な作業内容を記述してください。
-- 作業の単位が切り替わる際には、その都度 `tasks.md` の内容を更新し、常に現在の作業状況が反映されるようにしてください。これは、作業が中断された場合に、他の開発者（人間を含む）が状況を即座に把握できるようにするためです。
+## 1. Task Management with `tasks.md`
 
-### 2. エラー発生時の対応
-- 実装作業中にエラーが発生した場合、安易に同じ操作をリトライしないでください。
-- 代わりに、失敗したタスクをより小さなサブタスクに分割し、どの部分で問題が発生しているのかを特定するように努めてください。問題箇所を切り分けることで、効率的なデバッグと解決を目指します。
+- **Create Before Starting:** Before beginning any implementation, you must create or update the `tasks.md` file.
+- **Detail Current Task:** Clearly describe the specific task you are currently working on in `tasks.md`.
+- **Keep It Current:** Update the file every time you switch tasks. This ensures that anyone (human or AI) can quickly understand the project's status if your work is interrupted.
 
-### 3. `tasks.md` のフォーマット
-- `tasks.md` は、完了したタスクと未完了のタスクの両方を含む、**完全な作業履歴**として機能する必要があります。**古いタスクを削除しないでください。**
-- 完了したタスクは、行頭に `[v]` を付けてマークしてください。
-- 実行したが失敗して完了できなかったタスクは、行頭に `[x]` を付けてマークしてください。
-- 未完了のタスクは、行頭に `[ ]` を付けてマークしてください。
+## 2. Error Handling
+
+- **Don't Just Retry:** If you encounter an error, do not simply retry the same action.
+- **Isolate the Problem:** Break down the failing task into smaller sub-tasks to pinpoint the source of the error. This approach facilitates more efficient debugging and resolution.
+
+## 3. `tasks.md` Formatting
+
+`tasks.md` must serve as a complete, historical log of all work. **Do not delete old entries.**
+
+- `[v]` for completed tasks.
+- `[x]` for failed tasks.
+- `[ ]` for pending tasks.
+
+## 4. Documentation Updates
+
+- **Requirement Changes:** If a user's request involves adding or modifying requirements, you **must** update `requirements.md` to reflect these changes.
+- **Usage Changes:** If a requirement change alters how the software is used, you **must** also update `README.md`.
