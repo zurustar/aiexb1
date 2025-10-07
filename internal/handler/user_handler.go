@@ -3,11 +3,12 @@ package handler
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"schedule-app/internal/model"
 	"schedule-app/internal/repository"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -28,51 +29,66 @@ func NewUserHandler(userRepo *repository.UserRepository, jwtSecret string) *User
 	}
 }
 
+// emailRegex はEメールアドレスの形式を検証するための正規表現です。
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+
 // Register はユーザー登録のためのハンドラです。
 func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req model.RegisterUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		errorJSON(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	// TODO: バリデーションの追加 (username, email, password の形式チェック)
+	// 入力値のバリデーション
+	req.Username = strings.TrimSpace(req.Username)
+	req.Email = strings.TrimSpace(req.Email)
+
+	if len(req.Username) < 3 {
+		errorJSON(w, http.StatusBadRequest, "Username must be at least 3 characters long")
+		return
+	}
+	if !emailRegex.MatchString(req.Email) {
+		errorJSON(w, http.StatusBadRequest, "Invalid email format")
+		return
+	}
+	if len(req.Password) < 8 {
+		errorJSON(w, http.StatusBadRequest, "Password must be at least 8 characters long")
+		return
+	}
 
 	user, err := h.userRepo.CreateUser(&req)
 	if err != nil {
 		if errors.Is(err, repository.ErrDuplicateEntry) {
-			http.Error(w, "Username or email already exists", http.StatusConflict)
+			errorJSON(w, http.StatusConflict, "Username or email already exists")
 		} else {
 			log.Printf("ERROR: Failed to create user: %v", err)
-			http.Error(w, "Failed to create user", http.StatusInternalServerError)
+			errorJSON(w, http.StatusInternalServerError, "Failed to create user")
 		}
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(user.ToUserResponse())
+	writeJSON(w, http.StatusCreated, user.ToUserResponse())
 }
 
 // Login はユーザーログインのためのハンドラです。
 func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req model.LoginUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		errorJSON(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	user, err := h.userRepo.FindUserByEmail(req.Email)
 	if err != nil {
-		// ユーザーが見つからない場合も、パスワードが違う場合も同じエラーを返す
-		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
+		errorJSON(w, http.StatusUnauthorized, "Invalid email or password")
 		return
 	}
 
 	// パスワードを比較
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
 	if err != nil {
-		// パスワードが一致しない
-		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
+		errorJSON(w, http.StatusUnauthorized, "Invalid email or password")
 		return
 	}
 
@@ -91,29 +107,9 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(h.jwtSecret)
 	if err != nil {
-		http.Error(w, "Failed to create token", http.StatusInternalServerError)
+		errorJSON(w, http.StatusInternalServerError, "Failed to create token")
 		return
 	}
 
-	// トークンをJSONレスポンスとして返す
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"token": tokenString})
-}
-
-// writeJSON はGoの構造体をJSONレスポンスとして書き込みます。
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		// エンコードに失敗した場合はログに出力
-		fmt.Printf("Failed to encode response: %v\n", err)
-	}
-}
-
-// errorJSON はエラーメッセージをJSON形式で返します。
-func errorJSON(w http.ResponseWriter, status int, message string) {
-	type errorResponse struct {
-		Error string `json:"error"`
-	}
-	writeJSON(w, status, errorResponse{Error: message})
+	writeJSON(w, http.StatusOK, map[string]string{"token": tokenString})
 }
