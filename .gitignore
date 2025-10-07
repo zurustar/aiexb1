@@ -1,0 +1,16 @@
+# DB data
+/data/
+/schedule.db*
+
+# Log files
+*.log
+
+# Binaries
+/schedule-app
+
+# IDE-specific
+.idea/
+.vscode/
+
+# OS-specific
+.DS_Store
