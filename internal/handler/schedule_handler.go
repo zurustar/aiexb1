@@ -8,6 +8,7 @@ import (
 	"schedule-app/internal/model"
 	"schedule-app/internal/repository"
 	"strconv"
+	"strings"
 )
 
 // ScheduleHandler はスケジュール関連のHTTPリクエストを処理します。
@@ -84,9 +85,12 @@ func (h *ScheduleHandler) GetScheduleByID(w http.ResponseWriter, r *http.Request
 
 	schedule, err := h.scheduleRepo.FindByID(scheduleID)
 	if err != nil {
-		// TODO: エラーの種類によってステータスコードを分ける (e.g., not found -> 404)
 		log.Printf("ERROR: Failed to get schedule %d: %v", scheduleID, err)
-		http.Error(w, "Failed to retrieve schedule", http.StatusInternalServerError)
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, "Schedule not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Failed to retrieve schedule", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -94,6 +98,7 @@ func (h *ScheduleHandler) GetScheduleByID(w http.ResponseWriter, r *http.Request
 }
 
 // UpdateSchedule は既存のスケジュールを更新します。
+// 権限チェックはリポジトリ層で行います。
 func (h *ScheduleHandler) UpdateSchedule(w http.ResponseWriter, r *http.Request) {
 	// コンテキストから認証済みユーザーのIDを取得
 	userID, err := middleware.GetUserIDFromContext(r.Context())
@@ -109,38 +114,30 @@ func (h *ScheduleHandler) UpdateSchedule(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// 更新対象のスケジュールが存在するか、また更新権限があるかを確認
-	scheduleToUpdate, err := h.scheduleRepo.FindByID(scheduleID)
-	if err != nil {
-		http.Error(w, "Schedule not found", http.StatusNotFound)
-		return
-	}
-
-	// 権限チェック: スケジュールを作成したユーザーのみが更新できる
-	if scheduleToUpdate.CreatorID != userID {
-		http.Error(w, "Forbidden: You are not allowed to update this schedule", http.StatusForbidden)
-		return
-	}
-
 	var req model.UpdateScheduleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// TODO: 部分更新のロジックをリポジトリ側で実装する
-	updatedSchedule, err := h.scheduleRepo.Update(scheduleID, &req)
+	updatedSchedule, err := h.scheduleRepo.Update(scheduleID, &req, userID)
 	if err != nil {
 		log.Printf("ERROR: Failed to update schedule %d: %v", scheduleID, err)
-		http.Error(w, "Failed to update schedule", http.StatusInternalServerError)
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, "Schedule not found", http.StatusNotFound)
+		} else if strings.Contains(err.Error(), "not authorized") {
+			http.Error(w, "Forbidden: You are not authorized to update this schedule", http.StatusForbidden)
+		} else {
+			http.Error(w, "Failed to update schedule", http.StatusInternalServerError)
+		}
 		return
 	}
 
 	writeJSON(w, http.StatusOK, updatedSchedule.ToScheduleResponse())
 }
 
-
 // DeleteSchedule はスケジュールを削除します。
+// 権限チェックはリポジトリ層で行います。
 func (h *ScheduleHandler) DeleteSchedule(w http.ResponseWriter, r *http.Request) {
 	userID, err := middleware.GetUserIDFromContext(r.Context())
 	if err != nil {
@@ -155,22 +152,16 @@ func (h *ScheduleHandler) DeleteSchedule(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	scheduleToDelete, err := h.scheduleRepo.FindByID(scheduleID)
-	if err != nil {
-		http.Error(w, "Schedule not found", http.StatusNotFound)
-		return
-	}
-
-	// 権限チェック: スケジュールを作成したユーザーのみが削除できる
-	if scheduleToDelete.CreatorID != userID {
-		http.Error(w, "Forbidden: You are not allowed to delete this schedule", http.StatusForbidden)
-		return
-	}
-
-	err = h.scheduleRepo.Delete(scheduleID)
+	err = h.scheduleRepo.Delete(scheduleID, userID)
 	if err != nil {
 		log.Printf("ERROR: Failed to delete schedule %d: %v", scheduleID, err)
-		http.Error(w, "Failed to delete schedule", http.StatusInternalServerError)
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, "Schedule not found", http.StatusNotFound)
+		} else if strings.Contains(err.Error(), "not authorized") {
+			http.Error(w, "Forbidden: You are not authorized to delete this schedule", http.StatusForbidden)
+		} else {
+			http.Error(w, "Failed to delete schedule", http.StatusInternalServerError)
+		}
 		return
 	}
 
