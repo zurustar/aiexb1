@@ -44,3 +44,10 @@
     - [v] Add validation for schedule creation (title, ownerID).
   - [v] Optimize database queries.
     - [v] Fix N+1 query problem in `schedule_repository.go`'s `FindByOwnerID` method.
+
+# Documentation Update
+
+- [v] **Milestone 5: Update and Translate `AGENTS.md`**
+  - [v] Translate `AGENTS.md` from Japanese to English.
+  - [v] Add the new rule for updating `requirements.md` and `README.md`.
+  - [v] Verify `README.md` is already in English and requires no changes.
