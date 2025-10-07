@@ -59,6 +59,34 @@
                 <button type="submit">追加</button>
             </form>
         </section>
+
+        <!-- 管理者用パネル (管理者のみ表示) -->
+        <section id="admin-panel" class="hidden">
+            <hr>
+            <h2>管理者パネル</h2>
+            <h3>ユーザー一覧</h3>
+            <div id="user-list">
+                <!-- ユーザーリストがここに動的に追加される -->
+            </div>
+
+            <div id="admin-schedule-view" class="hidden">
+                <h3 id="admin-selected-user-name"></h3>
+                <div id="admin-schedule-list">
+                    <!-- 選択したユーザーのスケジュールがここに表示される -->
+                </div>
+                <hr>
+                <h4>新しいスケジュールを追加</h4>
+                <form id="admin-create-schedule-form">
+                    <input type="hidden" id="admin-owner-id">
+                    <input type="text" id="admin-schedule-title" placeholder="タイトル" required>
+                    <input type="datetime-local" id="admin-schedule-start-time" required>
+                    <input type="datetime-local" id="admin-schedule-end-time" required>
+                    <textarea id="admin-schedule-description" placeholder="説明"></textarea>
+                    <input type="text" id="admin-schedule-location" placeholder="場所">
+                    <button type="submit">追加</button>
+                </form>
+            </div>
+        </section>
     </main>
 
     <script src="script.js"></script>
