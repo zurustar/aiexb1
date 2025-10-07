@@ -54,9 +54,15 @@ func TestScheduleHandlers(t *testing.T) {
 
 	var scheduleID int64
 
+	// Create a third user to act as a participant
+	userC_ID := createUser(t, server, "userc", "userc@example.com", "password789")
+
 	// --- Test Cases ---
-	t.Run("Should create a new schedule on another user's calendar", func(t *testing.T) {
-		requestBody := fmt.Sprintf(`{"title": "Shared Event", "owner_id": %d, "start_time": "2025-11-01T10:00:00Z", "end_time": "2025-11-01T11:00:00Z"}`, userB_ID)
+	t.Run("Should create a new schedule with participants", func(t *testing.T) {
+		requestBody := fmt.Sprintf(
+			`{"title": "Shared Event with Participants", "owner_id": %d, "start_time": "2025-11-01T10:00:00Z", "end_time": "2025-11-01T11:00:00Z", "participant_ids": [%d, %d]}`,
+			userB_ID, userA_ID, userC_ID,
+		)
 		req, _ := http.NewRequest("POST", "/api/schedules", bytes.NewBufferString(requestBody))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+tokenA)
@@ -71,8 +77,8 @@ func TestScheduleHandlers(t *testing.T) {
 		if err := json.NewDecoder(rr.Body).Decode(&schedule); err != nil {
 			t.Fatalf("Could not decode response: %v", err)
 		}
-		if schedule.Title != "Shared Event" {
-			t.Errorf("Expected title 'Shared Event', got '%s'", schedule.Title)
+		if schedule.Title != "Shared Event with Participants" {
+			t.Errorf("Expected title 'Shared Event with Participants', got '%s'", schedule.Title)
 		}
 		if schedule.CreatorID != userA_ID {
 			t.Errorf("Expected creator ID %d, got %d", userA_ID, schedule.CreatorID)
@@ -80,11 +86,20 @@ func TestScheduleHandlers(t *testing.T) {
 		if schedule.OwnerID != userB_ID {
 			t.Errorf("Expected owner ID %d, got %d", userB_ID, schedule.OwnerID)
 		}
+		if len(schedule.Participants) != 2 {
+			t.Fatalf("Expected 2 participants, got %d", len(schedule.Participants))
+		}
+		// Check if the correct users are participants
+		participantIDs := map[int64]bool{schedule.Participants[0].ID: true, schedule.Participants[1].ID: true}
+		if !participantIDs[userA_ID] || !participantIDs[userC_ID] {
+			t.Errorf("Expected participants to be User A and User C, but they were not")
+		}
 		scheduleID = schedule.ID
 	})
 
-	t.Run("Should allow creator to update the schedule", func(t *testing.T) {
-		requestBody := `{"title": "Updated Shared Event"}`
+	t.Run("Should allow creator to update the schedule and its participants", func(t *testing.T) {
+		// User A (creator) updates the schedule to only include User B as a participant
+		requestBody := fmt.Sprintf(`{"title": "Updated Shared Event", "participant_ids": [%d]}`, userB_ID)
 		req, _ := http.NewRequest("PUT", fmt.Sprintf("/api/schedules/%d", scheduleID), bytes.NewBufferString(requestBody))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+tokenA)
@@ -92,6 +107,20 @@ func TestScheduleHandlers(t *testing.T) {
 		rr := server.executeRequest(req)
 		if status := rr.Code; status != http.StatusOK {
 			t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+		}
+
+		var schedule model.ScheduleResponse
+		if err := json.NewDecoder(rr.Body).Decode(&schedule); err != nil {
+			t.Fatalf("Could not decode response: %v", err)
+		}
+		if schedule.Title != "Updated Shared Event" {
+			t.Errorf("Expected title 'Updated Shared Event', got '%s'", schedule.Title)
+		}
+		if len(schedule.Participants) != 1 {
+			t.Fatalf("Expected 1 participant, got %d", len(schedule.Participants))
+		}
+		if schedule.Participants[0].ID != userB_ID {
+			t.Errorf("Expected participant to be User B, got user ID %d", schedule.Participants[0].ID)
 		}
 	})
 
