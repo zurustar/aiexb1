@@ -119,8 +119,9 @@ func (r *ScheduleRepository) findParticipantsByScheduleID(scheduleID int64) ([]*
 	return participants, nil
 }
 
-// FindByOwnerID は指定された所有者のスケジュールをすべて取得します。
+// FindByOwnerID は指定された所有者のスケジュールをすべて取得します。N+1問題を回避するように最適化されています。
 func (r *ScheduleRepository) FindByOwnerID(ownerID int64) ([]*model.Schedule, error) {
+	// ステップ1: 所有者に関連するすべてのスケジュールを取得
 	query := `
 		SELECT id, title, start_time, end_time, description, location, owner_id, creator_id, created_at, updated_at
 		FROM schedules WHERE owner_id = ? ORDER BY start_time ASC;
@@ -131,25 +132,65 @@ func (r *ScheduleRepository) FindByOwnerID(ownerID int64) ([]*model.Schedule, er
 	}
 	defer rows.Close()
 
-	var schedules []*model.Schedule
+	// スケジュールをIDでマッピングし、IDのスライスを収集
+	scheduleMap := make(map[int64]*model.Schedule)
+	var scheduleIDs []int64
 	for rows.Next() {
 		var s model.Schedule
 		err := rows.Scan(&s.ID, &s.Title, &s.StartTime, &s.EndTime, &s.Description, &s.Location, &s.OwnerID, &s.CreatorID, &s.CreatedAt, &s.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan schedule row: %w", err)
 		}
-		// 各スケジュールの参加者情報を取得
-		participants, err := r.findParticipantsByScheduleID(s.ID)
-		if err != nil {
-			// 1つのスケジュールの参加者取得に失敗しても、全体を失敗させない（エラーログは出すべき）
-			fmt.Printf("could not fetch participants for schedule %d: %v\n", s.ID, err)
-		}
-		s.Participants = participants
-		schedules = append(schedules, &s)
+		s.Participants = []*model.User{} // 参加者スライスを初期化
+		scheduleMap[s.ID] = &s
+		scheduleIDs = append(scheduleIDs, s.ID)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during schedule rows iteration: %w", err)
 	}
 
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error during rows iteration: %w", err)
+	// スケジュールが存在しない場合は早期にリターン
+	if len(scheduleIDs) == 0 {
+		return []*model.Schedule{}, nil
+	}
+
+	// ステップ2: 収集したスケジュールIDを使って、すべての参加者を1回のクエリで取得
+	participantQuery := `
+		SELECT sp.schedule_id, u.id, u.username, u.email, u.created_at
+		FROM users u
+		JOIN schedule_participants sp ON u.id = sp.user_id
+		WHERE sp.schedule_id IN (` + strings.Repeat("?,", len(scheduleIDs)-1) + `?);
+	`
+	args := make([]interface{}, len(scheduleIDs))
+	for i, id := range scheduleIDs {
+		args[i] = id
+	}
+
+	participantRows, err := r.db.Query(participantQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query for participants failed: %w", err)
+	}
+	defer participantRows.Close()
+
+	// ステップ3: 参加者を対応するスケジュールにマッピング
+	for participantRows.Next() {
+		var scheduleID int64
+		var u model.User
+		if err := participantRows.Scan(&scheduleID, &u.ID, &u.Username, &u.Email, &u.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan participant row: %w", err)
+		}
+		if schedule, ok := scheduleMap[scheduleID]; ok {
+			schedule.Participants = append(schedule.Participants, &u)
+		}
+	}
+	if err = participantRows.Err(); err != nil {
+		return nil, fmt.Errorf("error during participant rows iteration: %w", err)
+	}
+
+	// マップからスケジュールのスライスを再構築
+	schedules := make([]*model.Schedule, 0, len(scheduleMap))
+	for _, id := range scheduleIDs { // 元の順序を維持
+		schedules = append(schedules, scheduleMap[id])
 	}
 
 	return schedules, nil

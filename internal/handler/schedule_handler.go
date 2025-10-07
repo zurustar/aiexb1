@@ -23,25 +23,33 @@ func NewScheduleHandler(scheduleRepo *repository.ScheduleRepository) *ScheduleHa
 
 // CreateSchedule は新しいスケジュールを作成するためのハンドラです。
 func (h *ScheduleHandler) CreateSchedule(w http.ResponseWriter, r *http.Request) {
-	// コンテキストから認証済みユーザーのIDを取得
 	creatorID, err := middleware.GetUserIDFromContext(r.Context())
 	if err != nil {
-		http.Error(w, "Unauthorized: "+err.Error(), http.StatusUnauthorized)
+		errorJSON(w, http.StatusUnauthorized, "Unauthorized: "+err.Error())
 		return
 	}
 
 	var req model.CreateScheduleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		errorJSON(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	// TODO: バリデーション (title, owner_id, times)
+	// 入力値のバリデーション
+	req.Title = strings.TrimSpace(req.Title)
+	if req.Title == "" {
+		errorJSON(w, http.StatusBadRequest, "Title is required")
+		return
+	}
+	if req.OwnerID == 0 {
+		errorJSON(w, http.StatusBadRequest, "OwnerID is required")
+		return
+	}
 
 	schedule, err := h.scheduleRepo.Create(&req, creatorID)
 	if err != nil {
 		log.Printf("ERROR: Failed to create schedule: %v", err)
-		http.Error(w, "Failed to create schedule", http.StatusInternalServerError)
+		errorJSON(w, http.StatusInternalServerError, "Failed to create schedule")
 		return
 	}
 
@@ -50,22 +58,20 @@ func (h *ScheduleHandler) CreateSchedule(w http.ResponseWriter, r *http.Request)
 
 // GetSchedulesByOwner は特定のユーザーが所有するスケジュール一覧を取得します。
 func (h *ScheduleHandler) GetSchedulesByOwner(w http.ResponseWriter, r *http.Request) {
-	// URLから所有者IDを取得
 	ownerIDStr := r.PathValue("ownerID")
 	ownerID, err := strconv.ParseInt(ownerIDStr, 10, 64)
 	if err != nil {
-		http.Error(w, "Invalid owner ID", http.StatusBadRequest)
+		errorJSON(w, http.StatusBadRequest, "Invalid owner ID")
 		return
 	}
 
 	schedules, err := h.scheduleRepo.FindByOwnerID(ownerID)
 	if err != nil {
 		log.Printf("ERROR: Failed to get schedules for owner %d: %v", ownerID, err)
-		http.Error(w, "Failed to retrieve schedules", http.StatusInternalServerError)
+		errorJSON(w, http.StatusInternalServerError, "Failed to retrieve schedules")
 		return
 	}
 
-	// レスポンス用に変換
 	var resp []*model.ScheduleResponse
 	for _, s := range schedules {
 		resp = append(resp, s.ToScheduleResponse())
@@ -79,7 +85,7 @@ func (h *ScheduleHandler) GetScheduleByID(w http.ResponseWriter, r *http.Request
 	scheduleIDStr := r.PathValue("scheduleID")
 	scheduleID, err := strconv.ParseInt(scheduleIDStr, 10, 64)
 	if err != nil {
-		http.Error(w, "Invalid schedule ID", http.StatusBadRequest)
+		errorJSON(w, http.StatusBadRequest, "Invalid schedule ID")
 		return
 	}
 
@@ -87,9 +93,9 @@ func (h *ScheduleHandler) GetScheduleByID(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		log.Printf("ERROR: Failed to get schedule %d: %v", scheduleID, err)
 		if strings.Contains(err.Error(), "not found") {
-			http.Error(w, "Schedule not found", http.StatusNotFound)
+			errorJSON(w, http.StatusNotFound, "Schedule not found")
 		} else {
-			http.Error(w, "Failed to retrieve schedule", http.StatusInternalServerError)
+			errorJSON(w, http.StatusInternalServerError, "Failed to retrieve schedule")
 		}
 		return
 	}
@@ -100,23 +106,22 @@ func (h *ScheduleHandler) GetScheduleByID(w http.ResponseWriter, r *http.Request
 // UpdateSchedule は既存のスケジュールを更新します。
 // 権限チェックはリポジトリ層で行います。
 func (h *ScheduleHandler) UpdateSchedule(w http.ResponseWriter, r *http.Request) {
-	// コンテキストから認証済みユーザーのIDを取得
 	userID, err := middleware.GetUserIDFromContext(r.Context())
 	if err != nil {
-		http.Error(w, "Unauthorized: "+err.Error(), http.StatusUnauthorized)
+		errorJSON(w, http.StatusUnauthorized, "Unauthorized: "+err.Error())
 		return
 	}
 
 	scheduleIDStr := r.PathValue("scheduleID")
 	scheduleID, err := strconv.ParseInt(scheduleIDStr, 10, 64)
 	if err != nil {
-		http.Error(w, "Invalid schedule ID", http.StatusBadRequest)
+		errorJSON(w, http.StatusBadRequest, "Invalid schedule ID")
 		return
 	}
 
 	var req model.UpdateScheduleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		errorJSON(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -124,11 +129,11 @@ func (h *ScheduleHandler) UpdateSchedule(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		log.Printf("ERROR: Failed to update schedule %d: %v", scheduleID, err)
 		if strings.Contains(err.Error(), "not found") {
-			http.Error(w, "Schedule not found", http.StatusNotFound)
+			errorJSON(w, http.StatusNotFound, "Schedule not found")
 		} else if strings.Contains(err.Error(), "not authorized") {
-			http.Error(w, "Forbidden: You are not authorized to update this schedule", http.StatusForbidden)
+			errorJSON(w, http.StatusForbidden, "Forbidden: You are not authorized to update this schedule")
 		} else {
-			http.Error(w, "Failed to update schedule", http.StatusInternalServerError)
+			errorJSON(w, http.StatusInternalServerError, "Failed to update schedule")
 		}
 		return
 	}
@@ -141,14 +146,14 @@ func (h *ScheduleHandler) UpdateSchedule(w http.ResponseWriter, r *http.Request)
 func (h *ScheduleHandler) DeleteSchedule(w http.ResponseWriter, r *http.Request) {
 	userID, err := middleware.GetUserIDFromContext(r.Context())
 	if err != nil {
-		http.Error(w, "Unauthorized: "+err.Error(), http.StatusUnauthorized)
+		errorJSON(w, http.StatusUnauthorized, "Unauthorized: "+err.Error())
 		return
 	}
 
 	scheduleIDStr := r.PathValue("scheduleID")
 	scheduleID, err := strconv.ParseInt(scheduleIDStr, 10, 64)
 	if err != nil {
-		http.Error(w, "Invalid schedule ID", http.StatusBadRequest)
+		errorJSON(w, http.StatusBadRequest, "Invalid schedule ID")
 		return
 	}
 
@@ -156,14 +161,14 @@ func (h *ScheduleHandler) DeleteSchedule(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		log.Printf("ERROR: Failed to delete schedule %d: %v", scheduleID, err)
 		if strings.Contains(err.Error(), "not found") {
-			http.Error(w, "Schedule not found", http.StatusNotFound)
+			errorJSON(w, http.StatusNotFound, "Schedule not found")
 		} else if strings.Contains(err.Error(), "not authorized") {
-			http.Error(w, "Forbidden: You are not authorized to delete this schedule", http.StatusForbidden)
+			errorJSON(w, http.StatusForbidden, "Forbidden: You are not authorized to delete this schedule")
 		} else {
-			http.Error(w, "Failed to delete schedule", http.StatusInternalServerError)
+			errorJSON(w, http.StatusInternalServerError, "Failed to delete schedule")
 		}
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	writeJSON(w, http.StatusNoContent, nil)
 }

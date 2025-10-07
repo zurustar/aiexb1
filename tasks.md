@@ -31,3 +31,16 @@
 - [v] **Milestone 3: Finalization**
   - [v] Review and test all new features.
   - [v] Update `requirements.md` if any clarifications or changes were made during implementation.
+
+# Project Refinement and Hardening
+
+- [v] **Milestone 4: Code Refactoring and Improvement**
+  - [v] Refactor handler utilities to avoid function redeclaration.
+    - [v] Create `internal/handler/handler_utils.go` for shared helper functions.
+    - [v] Move `writeJSON` and `errorJSON` to the new utility file.
+    - [v] Update `user_handler.go` and `schedule_handler.go` to use the shared utilities.
+  - [v] Implement input validation.
+    - [v] Add validation for user registration (username, email, password).
+    - [v] Add validation for schedule creation (title, ownerID).
+  - [v] Optimize database queries.
+    - [v] Fix N+1 query problem in `schedule_repository.go`'s `FindByOwnerID` method.
