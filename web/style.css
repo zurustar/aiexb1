@@ -102,3 +102,148 @@ button:hover {
 .delete-btn:hover {
     background-color: #c9302c;
 }
+
+/* --- Calendar Styles --- */
+#calendar-container {
+    margin-top: 20px;
+    user-select: none;
+}
+
+#calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+#calendar-header h3 {
+    margin: 0;
+}
+
+#calendar-grid {
+    border: 1px solid #ddd;
+}
+
+#week-header {
+    display: flex;
+    border-bottom: 1px solid #ddd;
+}
+
+.header-corner {
+    width: 60px; /* Same as time-axis width */
+    flex-shrink: 0;
+}
+
+.calendar-header-cell {
+    flex: 1;
+    padding: 8px;
+    background-color: #f2f2f2;
+    font-weight: bold;
+    text-align: center;
+    border-left: 1px solid #ddd;
+}
+
+.calendar-header-cell .day-of-week {
+    font-size: 0.9em;
+}
+
+.calendar-header-cell .date-number {
+    font-size: 1.2em;
+}
+
+.calendar-header-cell.today {
+    background-color: #e8f4ff;
+    color: #005a9e;
+}
+
+#week-body {
+    display: flex;
+    height: calc(24 * 60px); /* 24 hours * 60px/hour */
+    overflow-y: auto;
+    position: relative;
+}
+
+#time-axis {
+    width: 60px;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.time-label {
+    height: 60px; /* 60px/hour */
+    box-sizing: border-box;
+    text-align: right;
+    padding-right: 8px;
+    font-size: 0.8em;
+    color: #666;
+    position: relative;
+}
+
+.time-label::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    width: 100%;
+    border-bottom: 1px solid #eee;
+}
+
+#schedule-grid {
+    display: flex;
+    flex: 1;
+}
+
+.day-column {
+    flex: 1;
+    border-left: 1px solid #ddd;
+    position: relative;
+    background-image: linear-gradient(to bottom, #f9f9f9 1px, transparent 1px);
+    background-size: 100% 60px; /* Horizontal lines every hour */
+}
+
+.day-column.today {
+    background-color: #f8fbff;
+}
+
+.schedule-item-calendar {
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    background-color: rgba(51, 122, 183, 0.8);
+    color: white;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    overflow: hidden;
+    border-left: 3px solid #337ab7;
+    box-sizing: border-box;
+    z-index: 10;
+}
+
+.schedule-item-calendar .schedule-title {
+    font-weight: bold;
+}
+
+.schedule-item-calendar .schedule-time {
+    font-size: 0.9em;
+    margin-top: 2px;
+}
+
+.delete-btn-calendar {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0 4px;
+    opacity: 0.6;
+}
+
+.delete-btn-calendar:hover {
+    opacity: 1;
+    font-weight: bold;
+}

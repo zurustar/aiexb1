@@ -43,8 +43,26 @@
         <!-- スケジュール管理セクション (ログイン後に表示) -->
         <section id="schedule-section" class="hidden">
             <h2>あなたのスケジュール</h2>
-            <div id="schedule-list">
-                <!-- スケジュールがここに動的に追加される -->
+
+            <div id="calendar-container">
+                <div id="calendar-header">
+                    <button id="prev-week-btn">&lt; 前の週</button>
+                    <h3 id="calendar-month-year"></h3>
+                    <button id="next-week-btn">次の週 &gt;</button>
+                </div>
+                <div id="calendar-grid">
+                    <div id="week-header">
+                        <!-- Day headers will be generated here by JS -->
+                    </div>
+                    <div id="week-body">
+                        <div id="time-axis">
+                            <!-- Time labels will be generated here by JS -->
+                        </div>
+                        <div id="schedule-grid">
+                             <!-- Day columns for schedules will be generated here by JS -->
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <hr>
