@@ -4,8 +4,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginForm = document.getElementById('login-form');
     const registerForm = document.getElementById('register-form');
     const createScheduleForm = document.getElementById('create-schedule-form');
-    const scheduleList = document.getElementById('schedule-list');
     const authInfo = document.getElementById('auth-info');
+
+    const calendarContainer = document.getElementById('calendar-container');
+    const calendarMonthYear = document.getElementById('calendar-month-year');
+    const prevWeekBtn = document.getElementById('prev-week-btn');
+    const weekHeader = document.getElementById('week-header');
+    const timeAxis = document.getElementById('time-axis');
+    const scheduleGrid = document.getElementById('schedule-grid');
+    const nextWeekBtn = document.getElementById('next-week-btn');
 
     const showRegisterLink = document.getElementById('show-register-link');
     const showLoginLink = document.getElementById('show-login-link');
@@ -14,6 +21,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const API_URL = 'http://localhost:8080/api';
     let currentUser = null;
+    let currentDate = new Date();
+    let schedulesCache = [];
+
+    // --- Event Listeners ---
+    prevWeekBtn.addEventListener('click', () => {
+        currentDate.setDate(currentDate.getDate() - 7);
+        renderWeeklyCalendar(schedulesCache);
+    });
+
+    nextWeekBtn.addEventListener('click', () => {
+        currentDate.setDate(currentDate.getDate() + 7);
+        renderWeeklyCalendar(schedulesCache);
+    });
 
     // --- Utility Functions ---
     const getToken = () => localStorage.getItem('jwt_token');
@@ -141,43 +161,131 @@ document.addEventListener('DOMContentLoaded', () => {
     const fetchSchedules = async () => {
         if (!currentUser) return;
         try {
-            const schedules = await apiFetch(`/users/${currentUser.user_id}/schedules`);
-            renderSchedules(schedules);
+            schedulesCache = await apiFetch(`/users/${currentUser.user_id}/schedules`) || [];
+            renderWeeklyCalendar(schedulesCache);
         } catch (error) {
             alert(`Failed to fetch schedules: ${error.message}`);
+            schedulesCache = [];
+            renderWeeklyCalendar(schedulesCache);
         }
     };
 
-    const renderSchedules = (schedules) => {
-        scheduleList.innerHTML = '';
-        if (!schedules || schedules.length === 0) {
-            scheduleList.innerHTML = '<p>スケジュールはありません。</p>';
-            return;
+    const renderWeeklyCalendar = (schedules) => {
+        // Clear previous content
+        weekHeader.innerHTML = '';
+        timeAxis.innerHTML = '';
+        scheduleGrid.innerHTML = '';
+
+        const startOfWeek = new Date(currentDate);
+        startOfWeek.setDate(startOfWeek.getDate() - (startOfWeek.getDay() || 7) + 1); // Monday
+
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(endOfWeek.getDate() + 6); // Sunday
+
+        calendarMonthYear.textContent = `${startOfWeek.getFullYear()}年 ${startOfWeek.getMonth() + 1}月`;
+
+        // --- Render Time Axis ---
+        for (let hour = 0; hour < 24; hour++) {
+            const timeLabel = document.createElement('div');
+            timeLabel.className = 'time-label';
+            timeLabel.textContent = `${String(hour).padStart(2, '0')}:00`;
+            timeAxis.appendChild(timeLabel);
         }
-        schedules.forEach(s => {
-            const item = document.createElement('div');
-            item.className = 'schedule-item';
-            item.innerHTML = `
-                <h4>${s.title}</h4>
-                <p><strong>開始:</strong> ${new Date(s.start_time).toLocaleString()}</p>
-                <p><strong>終了:</strong> ${new Date(s.end_time).toLocaleString()}</p>
-                <p>${s.description || ''}</p>
-                <p><em>場所: ${s.location || 'N/A'}</em></p>
-                <div class="actions">
-                    <button class="delete-btn" data-id="${s.id}">削除</button>
-                </div>
+
+        const days = ['月', '火', '水', '木', '金', '土', '日'];
+        const dayColumns = [];
+
+        // --- Render Header and Day Columns ---
+        // Add a blank corner for the time axis
+        const corner = document.createElement('div');
+        corner.className = 'header-corner';
+        weekHeader.appendChild(corner);
+
+        for (let i = 0; i < 7; i++) {
+            const day = new Date(startOfWeek);
+            day.setDate(day.getDate() + i);
+
+            // Render Header
+            const headerCell = document.createElement('div');
+            headerCell.className = 'calendar-header-cell';
+            headerCell.innerHTML = `
+                <div class="day-of-week">${days[i]}</div>
+                <div class="date-number">${day.getDate()}</div>
             `;
-            scheduleList.appendChild(item);
+            if (isToday(day)) {
+                headerCell.classList.add('today');
+            }
+            weekHeader.appendChild(headerCell);
+
+            // Create Day Column
+            const dayColumn = document.createElement('div');
+            dayColumn.className = 'day-column';
+            if (isToday(day)) {
+                dayColumn.classList.add('today');
+            }
+            scheduleGrid.appendChild(dayColumn);
+            dayColumns.push(dayColumn);
+        }
+
+        // --- Render Schedules ---
+        schedules.forEach(s => {
+            const startTime = new Date(s.start_time);
+            const endTime = new Date(s.end_time);
+            const dayIndex = (startTime.getDay() + 6) % 7; // Monday is 0
+
+            // Ensure the schedule is within the current week
+            if (startTime < startOfWeek || startTime > endOfWeek) {
+                return;
+            }
+
+            const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
+            const endMinutes = endTime.getHours() * 60 + endTime.getMinutes();
+            const durationMinutes = Math.max(0, endMinutes - startMinutes);
+
+            // Position and height calculation (1 minute = 1 pixel for simplicity)
+            const top = startMinutes;
+            const height = durationMinutes;
+
+            const scheduleItem = document.createElement('div');
+            scheduleItem.className = 'schedule-item-calendar';
+            scheduleItem.style.top = `${top}px`;
+            scheduleItem.style.height = `${height}px`;
+
+            scheduleItem.innerHTML = `
+                <div class="schedule-title">${s.title}</div>
+                <div class="schedule-time">
+                    ${startTime.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })} -
+                    ${endTime.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+                <button class="delete-btn-calendar" data-id="${s.id}">&times;</button>
+            `;
+
+            dayColumns[dayIndex].appendChild(scheduleItem);
         });
 
-        // Add event listeners for delete buttons
-        document.querySelectorAll('.delete-btn').forEach(button => {
+        setupDeleteButtons();
+    };
+
+    const isToday = (someDate) => {
+        const today = new Date();
+        return someDate.getDate() === today.getDate() &&
+               someDate.getMonth() === today.getMonth() &&
+               someDate.getFullYear() === today.getFullYear();
+    };
+
+    const setupDeleteButtons = () => {
+        document.querySelectorAll('.delete-btn-calendar').forEach(button => {
+            // Remove existing listeners to avoid duplicates
+            button.replaceWith(button.cloneNode(true));
+        });
+        document.querySelectorAll('.delete-btn-calendar').forEach(button => {
             button.addEventListener('click', async (e) => {
+                e.stopPropagation(); // Stop event bubbling
                 const scheduleId = e.target.dataset.id;
                 if (confirm('このスケジュールを本当に削除しますか？')) {
                     try {
                         await apiFetch(`/schedules/${scheduleId}`, { method: 'DELETE' });
-                        fetchSchedules(); // Refresh list
+                        fetchSchedules(); // Refresh calendar
                     } catch (error) {
                         alert(`Failed to delete schedule: ${error.message}`);
                     }

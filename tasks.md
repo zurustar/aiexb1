@@ -51,3 +51,9 @@
   - [v] Translate `AGENTS.md` from Japanese to English.
   - [v] Add the new rule for updating `requirements.md` and `README.md`.
   - [v] Verify `README.md` is already in English and requires no changes.
+
+# UI/UX Improvement
+
+- [v] **Milestone 6: Enhance Schedule Visualization**
+  - [v] Change the schedule display from a list to a weekly calendar view.
+  - [v] Add a vertical time axis to the weekly calendar.
